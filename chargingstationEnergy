@@ -1,0 +1,89 @@
+#coding=utf-8
+import pandas as pd
+from math import *
+from geopy.distance import geodesic
+
+# input Lat_A 纬度A
+# input Lng_A 经度A
+# input Lat_B 纬度B
+# input Lng_B 经度B
+# output distance 距离(km)
+def calcDistance(Lat_A, Lng_A, Lat_B, Lng_B):
+    ra = 6378.140  # 赤道半径 (km)
+    rb = 6356.755  # 极半径 (km)
+    flatten = (ra - rb) / ra  # 地球扁率
+    rad_lat_A = radians(Lat_A)
+    rad_lng_A = radians(Lng_A)
+    rad_lat_B = radians(Lat_B)
+    rad_lng_B = radians(Lng_B)
+    pA = atan(rb / ra * tan(rad_lat_A))
+    pB = atan(rb / ra * tan(rad_lat_B))
+    xx = acos(sin(pA) * sin(pB) + cos(pA) * cos(pB) * cos(rad_lng_A - rad_lng_B))
+    c1 = (sin(xx) - xx) * (sin(pA) + sin(pB)) ** 2 / cos(xx / 2) ** 2
+    c2 = (sin(xx) + xx) * (sin(pA) - sin(pB)) ** 2 / sin(xx / 2) ** 2
+    dr = flatten / 8 * (c1 - c2)
+    distance = ra * (xx + dr)
+    return distance
+
+
+chargerecord  = pd.read_csv("C:/WorkFolder/PYTHON/charginglocations.csv", encoding="gbk", iterator = True)
+try:
+    df = chargerecord.get_chunk(9999999)
+    print(df.axes)
+    # df.dropna()
+    # df["Center Lng"]
+    # df["Center Lat"]
+
+except StopIteration:
+    print("Interation is stopped")
+LISTlongtitudelist = df["Center Lng"].tolist()
+LISTlatitudelist = df["Center Lat"].tolist()
+LISTenergyadded = df["Energy Added"].tolist()
+LISTtechnology = df["Technology"].tolist()
+
+
+# print(LISTlatitudelist, "\n", LISTlongtitudelist)
+
+
+servicestoplocation  = pd.read_excel("C:/WorkFolder/PYTHON/servicestop.xlsx", header=0)
+# print(servicestoplocation.head())
+# servicestoplocation["latitude"].apply(pd.to_numeric)
+# servicestoplocation["longitude"].apply(pd.to_numeric)
+latitudelist = servicestoplocation["latitude"].values.tolist()
+longtitudelist = servicestoplocation["longitude"].values.tolist()
+longtitudelist = list(map(float,longtitudelist))
+# print(type(latitudelist), longtitudelist)
+record_number  = 1
+result_list = []
+# result_listdf = pd.DataFrame(result_list)
+result_listdf = pd.DataFrame(columns=('Distance', "stationLa", 'stationLn', "RecordLa", 'RecordLn', "energy, tech"))
+for (target1, target2, energy, tech) in zip(LISTlatitudelist, LISTlongtitudelist, LISTenergyadded, LISTtechnology):
+    # print(target1, target2)
+    for (a, b) in zip(latitudelist, longtitudelist):
+        result = geodesic((a,b), (target1,target2)).km
+        # result = calcDistance(a, b, target1, target2)
+        # print(result, a, b, target1, target2, "RESULT2")
+        if result > 3:
+            pass
+
+        else:
+            print(result, a, b, target1, target2, energy, tech)
+            result_list.append([result, a, b, target1, target2, energy, tech])
+            # resultDF = pd.DataFrame(result_list, columns= ["DIST", "la","ln", "LA", "LN","ENERG","TECH"])
+            # print(pd.DataFrame(result_list))
+
+    print(record_number)
+    record_number += 1
+    resultDF = pd.DataFrame(result_list, columns=["DIST", "la", "ln", "LA", "LN", "ENERG", "TECH"])
+    print(pd.DataFrame(result_list))
+    if len(result_list)>3:
+        break
+
+def savetoFile(dataresults):
+    # with open("C:/WorkFolder/PYTHON/ResultFolder", "w+"):
+    pd.DataFrame(dataresults).to_csv("C:/WorkFolder/PYTHON/ResultFolder/Finalresult.csv", encoding= "utf8", )
+
+savetoFile(resultDF)
+
+
+
