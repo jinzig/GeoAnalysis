@@ -1,8 +1,16 @@
-#coding=utf-8
+# coding=utf-8
 import pandas as pd
 from math import *
 from geopy.distance import geodesic
+import numpy as np
+from vincenty import vincenty
+import time
 
+def savetoFile(dataresults):
+    # with open("C:/WorkFolder/PYTHON/ResultFolder", "w+"):
+    pd.DataFrame(dataresults).to_csv("C:/WorkFolder/PYTHON/ResultFolder/Finalresult.csv", encoding= "utf8", )
+
+#距离计算公式一 calDistance
 # input Lat_A 纬度A
 # input Lng_A 经度A
 # input Lat_B 纬度B
@@ -25,10 +33,10 @@ def calcDistance(Lat_A, Lng_A, Lat_B, Lng_B):
     distance = ra * (xx + dr)
     return distance
 
-
-chargerecord  = pd.read_csv("C:/WorkFolder/PYTHON/charginglocations.csv", encoding="gbk", iterator = True)
+#读入充电记录表
+chargerecord  = pd.read_csv("C:/WorkFolder/PYTHON/technology_energy_data _summaryAll.csv", encoding="utf8", iterator = True)
 try:
-    df = chargerecord.get_chunk(9999999)
+    df = chargerecord.get_chunk(99999999)
     print(df.axes)
     # df.dropna()
     # df["Center Lng"]
@@ -36,54 +44,106 @@ try:
 
 except StopIteration:
     print("Interation is stopped")
+# IndexTemp =['Number of Records', 'Admin1', 'Admin2', 'Center Lat', 'Center Lng',
+#        'Country', 'Country Code', 'Derived Location', 'Energy Added', 'Hex',
+#        'Num Sessions', 'Place', 'Start Date', 'Technology']
+"""
+df1 = df.groupby(["Center Lng", "Center Lat"]).sum()
+df2 = pd.DataFrame(df1).reset_index()
+print(df, "+++++++++++++++++++",df.axes, df.reindex, type(df))
+"""
+# df = pd.DataFrame.swaplevel(df)
+
+# df = pd.DataFrame(dict(df.groupby(["Center Lng", "Center Lat"], as_index= True)))
+
 LISTlongtitudelist = df["Center Lng"].tolist()
 LISTlatitudelist = df["Center Lat"].tolist()
 LISTenergyadded = df["Energy Added"].tolist()
 LISTtechnology = df["Technology"].tolist()
 
 
+
 # print(LISTlatitudelist, "\n", LISTlongtitudelist)
 
-
+#读入国网站点列表
 servicestoplocation  = pd.read_excel("C:/WorkFolder/PYTHON/servicestop.xlsx", header=0)
 # print(servicestoplocation.head())
 # servicestoplocation["latitude"].apply(pd.to_numeric)
 # servicestoplocation["longitude"].apply(pd.to_numeric)
 latitudelist = servicestoplocation["latitude"].values.tolist()
 longtitudelist = servicestoplocation["longitude"].values.tolist()
-longtitudelist = list(map(float,longtitudelist))
-# print(type(latitudelist), longtitudelist)
+stationname = servicestoplocation["name"].tolist()
+#
+# locationmat = np.mat([latitudelist,longtitudelist], dtype= float)
+# print(locationmat)
+# LOCATIONMAT = np.mat([LISTlatitudelist,LISTlongtitudelist])
+# mat_result  = locationmat + LOCATIONMAT
+# # mat_result = geodesic(locationmat,LOCATIONMAT)
+# print(mat_result)
+# for i in mat_result:
+#     print(type(i))
+
+#DF分组尝试减少计算量
+# groupy = df.groupby(["Center Lng", "Center Lat"])
+# print(pd.DataFrame(groupy))
+
 record_number  = 1
 result_list = []
-# result_listdf = pd.DataFrame(result_list)
-result_listdf = pd.DataFrame(columns=('Distance', "stationLa", 'stationLn', "RecordLa", 'RecordLn', "energy, tech"))
-for (target1, target2, energy, tech) in zip(LISTlatitudelist, LISTlongtitudelist, LISTenergyadded, LISTtechnology):
-    # print(target1, target2)
-    for (a, b) in zip(latitudelist, longtitudelist):
-        result = geodesic((a,b), (target1,target2)).km
-        # result = calcDistance(a, b, target1, target2)
+### 11111111111111111111111111111111
+time_start = time.time()
+for (a, b, c) in zip(latitudelist, longtitudelist, stationname):
+    time_start1 = time.time()
+    for (target1, target2, energy, tech) in zip(LISTlatitudelist, LISTlongtitudelist, LISTenergyadded, LISTtechnology):
+        if abs(a - target1)< 0.1 and abs(b-target2) < 0.1:
+            # result = calcDistance(a, b, target1, target2)
+            result = vincenty((a, b), (target1, target2))
         # print(result, a, b, target1, target2, "RESULT2")
-        if result > 3:
+            if result > 1:
+                pass
+
+            else:
+                # print(result, a, b, target1, target2, energy, tech)
+                result_list.append([c, result, a, b, target1, target2, energy, tech])
+                resultDF = pd.DataFrame(result_list, columns=["SiteName", "DIST", "la", "ln", "LA", "LN", "ENERG", "TECH"])
+        else:
             pass
 
-        else:
-            print(result, a, b, target1, target2, energy, tech)
-            result_list.append([result, a, b, target1, target2, energy, tech])
-            # resultDF = pd.DataFrame(result_list, columns= ["DIST", "la","ln", "LA", "LN","ENERG","TECH"])
-            # print(pd.DataFrame(result_list))
-
-    print(record_number)
+    # print(pd.DataFrame(result_list))
+    # print(record_number)
     record_number += 1
-    resultDF = pd.DataFrame(result_list, columns=["DIST", "la", "ln", "LA", "LN", "ENERG", "TECH"])
-    print(pd.DataFrame(result_list))
-    if len(result_list)>3:
-        break
-
-def savetoFile(dataresults):
-    # with open("C:/WorkFolder/PYTHON/ResultFolder", "w+"):
-    pd.DataFrame(dataresults).to_csv("C:/WorkFolder/PYTHON/ResultFolder/Finalresult.csv", encoding= "utf8", )
-
+    print(record_number, "单用时", time.time() - time_start1, "总用时", time.time()-time_start)
 savetoFile(resultDF)
+### 2222222222222222222222222222222#
+
+#
+# for (target1, target2, energy, tech) in zip(LISTlatitudelist, LISTlongtitudelist, LISTenergyadded, LISTtechnology):
+#     print(target1, target2, "--------------------------------------------------")
+#     for (a, b) in zip(latitudelist, longtitudelist):
+#         result = calcDistance(a, b, target1, target2)
+#         # print(result, a, b, target1, target2, "RESULT2")
+#         if result > 2:
+#             pass
+#
+#         else:
+#             # print(result, a, b, target1, target2, energy, tech)
+#             result_list.append([result, a, b, target1, target2, energy, tech])
+#             resultDF = pd.DataFrame(result_list, columns= ["DIST", "la","ln", "LA", "LN","ENERG","TECH"])
+#     print(pd.DataFrame(result_list))
+
+
+    # print(record_number)
+    # record_number += 1
+    # resultDF = pd.DataFrame(result_list, columns=["DIST", "la", "ln", "LA", "LN", "ENERG", "TECH"])
+    # print(pd.DataFrame(result_list))
+    # # if len(result_list)>5:
+
+
+# savetoFile(resultDF)
+
+
+
+
+
 
 
 
